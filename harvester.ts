@@ -7,7 +7,7 @@ const TRIPADVISOR_ID = process.env.TRIPADVISOR_ID;
 const TRIPADVISOR_BASE = process.env.TRIPADVISOR_BASE;
 const TRIPADVISOR_FULL = process.env.TRIPADVISOR_FULL;
 const TRIPADVISOR_USER_REVIEW_BASE = `${TRIPADVISOR_BASE}ShowUserReviews-${TRIPADVISOR_ID}`;
-const TRIPADVISOR_BASE_ACITVITY = `${TRIPADVISOR_BASE}Attraction_Review-${TRIPADVISOR_ID}-Reviews?filterLang=ALL`;
+const TRIPADVISOR_BASE_ACITVITY = `${TRIPADVISOR_BASE}Attraction_Review-${TRIPADVISOR_ID}-Reviews`;//?filterLang=ALL
 const TRIPADVISOR_PAGES = [
   process.env.TRIPADVISOR_PAGES_0,
   process.env.RIPADVISOR_PAGES_1,
@@ -36,9 +36,17 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
       (
         document.body.querySelector("#LanguageFilter_0") as HTMLInputElement
       ).click();
+
+      // const acceptButton = document.querySelector(
+      //   "#onetrust-accept-btn-handler"
+      // );
+      // if (acceptButton !== undefined && acceptButton !== null) {
+      //   (acceptButton as HTMLElement).click();
+      // }
       let interval = setInterval(function () {
         cLoop++;
         if (cLoop > WAITFOR_LANGUAGE_RADIO_MAX) {
+          debugger;
           console.log("timedout");
           console.log(document.documentElement.innerHTML);
           clearInterval(interval);
@@ -103,12 +111,25 @@ const processor = (browser: Browser, href: string) => {
                     'document.querySelector("body").innerText.includes("This review is the subjective")'
                   )
                   .then((data) => {
-                    resolve(
-                      page.evaluate(
-                        evaluateTripAdvisorPage,
-                        TRIPADVISOR_USER_REVIEW_BASE
-                      )
-                    );
+                    page
+                      .waitForSelector("#onetrust-accept-btn-handler", {
+                        timeout: 3001,
+                      })
+                      .then((data) => {
+                        page
+                          .evaluate(
+                            'document.querySelector("#onetrust-accept-btn-handler").click()',
+                            { timeout: 3002 }
+                          )
+                          .then((data) => {
+                            resolve(
+                              page.evaluate(
+                                evaluateTripAdvisorPage,
+                                TRIPADVISOR_USER_REVIEW_BASE
+                              )
+                            );
+                          });
+                      })
                   });
               });
             });
@@ -121,7 +142,8 @@ const processor = (browser: Browser, href: string) => {
 launch({
   headless: false,
   devtools: true,
-  args: ["--no-sandbox", "--disable-setuid-sandbox", "--window-size=1920,1080"],
+  
+  args: ["--no-sandbox", "--disable-setuid-sandbox","--window-size=1920,1080"],
 }).then(async (browser: Browser) => {
   let promises = [];
 
@@ -130,5 +152,5 @@ launch({
   promises.push(processor(browser, TRIPADVISOR_BASE_ACITVITY));
   const reviews = await Promise.all(promises);
   console.log(reviews);
-  await browser.close();
+ await browser.close();
 });
