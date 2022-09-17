@@ -4,7 +4,7 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "run": "node --loader ts-node/esm ./harvester.ts",
+    "scrap": "node --loader ts-node/esm ./harvester.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

@@ -54,12 +54,11 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
           resolve(results);
         }
         if (document.querySelector("body").innerText.includes("Google")) {
-          console.log("catched Google");
+          console.log("start scraping review in this page\n"+window.location.href);
           clearInterval(interval);
           let items = document.body.querySelectorAll("[data-reviewid]");
           for (let i = 0; i < items.length; i++) {
             const item = items[i];
-            console.log(i);
             let ratingElement = item
               .querySelector(".ui_bubble_rating")
               .getAttribute("class");
@@ -71,6 +70,7 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
                 '[data-test-target="review-title"]'
               ) as HTMLElement
             ).innerText;
+            console.log(`\t got item ${i+1} id:${reviewId} title:${reviewTitle}`);
             let experience = item
               .querySelectorAll("span")[6]
               .innerText.replace(/^.*: /, "");
@@ -85,7 +85,7 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
           }
           resolve(results);
         } else {
-          console.log(`still wait for Google : ${window.location.href}`);
+          console.log(`still wait for page being ready (perhaps there is no more element)\n${window.location.href}`);
         }
       }, WAITFOR_LANGUAGE_RADIO_INTERVAL);
     });
@@ -156,7 +156,7 @@ const processor = (browser: Browser, href: string) => {
   });
 };
 launch({
-  headless: false,
+  headless: true,
   devtools: true,
 
   args: ["--no-sandbox", "--disable-setuid-sandbox", "--window-size=1920,1080"],
