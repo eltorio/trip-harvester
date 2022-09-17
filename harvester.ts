@@ -1,5 +1,6 @@
 import * as dotenv from "dotenv"; // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
 import { launch, Browser } from "puppeteer";
+import fs from 'fs/promises'
 
 dotenv.config();
 
@@ -7,12 +8,13 @@ const TRIPADVISOR_ID = process.env.TRIPADVISOR_ID;
 const TRIPADVISOR_BASE = process.env.TRIPADVISOR_BASE;
 const TRIPADVISOR_FULL = process.env.TRIPADVISOR_FULL;
 const TRIPADVISOR_USER_REVIEW_BASE = `${TRIPADVISOR_BASE}ShowUserReviews-${TRIPADVISOR_ID}`;
-const TRIPADVISOR_BASE_ACITVITY = `${TRIPADVISOR_BASE}Attraction_Review-${TRIPADVISOR_ID}-Reviews`;//?filterLang=ALL
+const TRIPADVISOR_BASE_ACITVITY = `${TRIPADVISOR_BASE}Attraction_Review-${TRIPADVISOR_ID}-Reviews`; //?filterLang=ALL
 const TRIPADVISOR_PAGES = [
   process.env.TRIPADVISOR_PAGES_0,
   process.env.RIPADVISOR_PAGES_1,
   process.env.RIPADVISOR_PAGES_2,
 ];
+const MAX_REVIEW_PAGE = 50
 
 console.log(`Working for : ${TRIPADVISOR_BASE_ACITVITY}`);
 
@@ -46,14 +48,13 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
       let interval = setInterval(function () {
         cLoop++;
         if (cLoop > WAITFOR_LANGUAGE_RADIO_MAX) {
-          debugger;
           console.log("timedout");
-          console.log(document.documentElement.innerHTML);
+          //console.log(document.documentElement.innerHTML);
           clearInterval(interval);
-          reject("timedout");
+          resolve(results);
         }
         if (document.querySelector("body").innerText.includes("Google")) {
-          console.log("catched");
+          console.log("catched Google");
           clearInterval(interval);
           let items = document.body.querySelectorAll("[data-reviewid]");
           for (let i = 0; i < items.length; i++) {
@@ -81,11 +82,10 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
               exp: experience,
               url: `${TRIPADVISOR_USER_REVIEW_BASE}-r${reviewId}`,
             });
-            (document.body.querySelector('a.ui_button.nav.next.primary') as HTMLAnchorElement).click()
           }
           resolve(results);
         } else {
-          console.log("reloaded");
+          console.log(`still wait for Google : ${window.location.href}`);
         }
       }, WAITFOR_LANGUAGE_RADIO_INTERVAL);
     });
@@ -123,23 +123,29 @@ const processor = (browser: Browser, href: string) => {
                             { timeout: 3002 }
                           )
                           .then(async (data) => {
-                           let review = await page.evaluate(
-                              evaluateTripAdvisorPage,
-                              TRIPADVISOR_USER_REVIEW_BASE
-                            )
-                            review = review.concat(await page.evaluate(
-                              evaluateTripAdvisorPage,
-                              TRIPADVISOR_USER_REVIEW_BASE
-                            ))
-                            review = review.concat(await page.evaluate(
-                              evaluateTripAdvisorPage,
-                              TRIPADVISOR_USER_REVIEW_BASE
-                            ))
-                            resolve(
-                                review
-                            );
+                            let review = [] as TripadvisorReview[];
+                            for (let i = 0; i < MAX_REVIEW_PAGE; i++) {
+                              review = review.concat(
+                                await page.evaluate(
+                                  evaluateTripAdvisorPage,
+                                  TRIPADVISOR_USER_REVIEW_BASE
+                                )
+                              );
+                              const aNext = await page.$("span.pageNum + a");
+                              if (aNext !== null) {
+                                await Promise.all([
+                                  page.waitForNavigation(),
+                                  page.click("span.pageNum + a"),
+                                ]);
+                              } else {
+                                i = MAX_REVIEW_PAGE+1;
+                                break;
+                              }
+                            }
+
+                            resolve(review);
                           });
-                      })
+                      });
                   });
               });
             });
@@ -152,8 +158,8 @@ const processor = (browser: Browser, href: string) => {
 launch({
   headless: false,
   devtools: true,
-  
-  args: ["--no-sandbox", "--disable-setuid-sandbox","--window-size=1920,1080"],
+
+  args: ["--no-sandbox", "--disable-setuid-sandbox", "--window-size=1920,1080"],
 }).then(async (browser: Browser) => {
   let promises = [];
 
@@ -161,6 +167,7 @@ launch({
 
   promises.push(processor(browser, TRIPADVISOR_BASE_ACITVITY));
   const reviews = await Promise.all(promises);
-  console.log(reviews);
- await browser.close();
+  await browser.close();
+  console.log(`Retrieved ${reviews[0].lentgh} reviews`)
+  await fs.writeFile(`out-${Math.floor(Date.now() / 1000)}.json`,JSON.stringify(reviews[0]))
 });
