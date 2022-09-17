@@ -63,6 +63,25 @@ After a while we get all the reviews in a json file.
 
 So is it legal or illegal? Web scraping and crawling aren’t illegal by themselves. After all, you could scrape or crawl your own website, without a hitch. If you scrap the reviews of your own company it is not.
 
-## Howto debut ?
+## How to debug ?
 
 Turn false the headless param
+
+This is my vscode launch.json
+```json
+{
+ "version": "0.2.0",
+    "configurations": [
+	{
+            "name": "Debug Typescript",
+            "type": "node",
+            "request": "launch",
+            "args": ["${relativeFile}"],
+            "runtimeArgs": ["--loader", "ts-node/esm", "--experimental-specifier-resolution=node"],
+            "cwd": "${workspaceRoot}",
+            "protocol": "inspector",
+            "internalConsoleOptions": "openOnSessionStart"
+          }
+    ]
+}
+```
