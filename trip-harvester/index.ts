@@ -1,15 +1,22 @@
-
 import { launch, Browser } from "puppeteer";
 
 const MAX_REVIEW_PAGE = 1000; // there is 5 reviews per page
 
 type TripadvisorReview = {
   reviewId?: string;
+  reviewerUrl?: string;
+  reviewerName?: string;
+  reviewDate?: string;
   rating?: number;
   title?: string;
   text?: string;
   exp?: string;
   url?: string;
+};
+
+type TripadvisorRating = {
+  globalRating: number;
+  reviews: TripadvisorReview[];
 };
 
 const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
@@ -46,6 +53,9 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
           let items = document.body.querySelectorAll("[data-reviewid]");
           for (let i = 0; i < items.length; i++) {
             const item = items[i];
+            const reviewerUrl = (item.parentElement.querySelector('a.ui_header_link')as HTMLAnchorElement).href 
+            const reviewerName = (item.parentElement.querySelector('a.ui_header_link') as HTMLAnchorElement).innerText
+            const reviewDate = item.parentElement.querySelector('a.ui_header_link').parentElement.innerText.match(/\w+\W+\w+$/)[0]
             let ratingElement = item
               .querySelector(".ui_bubble_rating")
               .getAttribute("class");
@@ -65,6 +75,9 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
               .innerText.replace(/^.*: /, "");
             results.push({
               reviewId: reviewId,
+              reviewerUrl: reviewerUrl,
+              reviewerName: reviewerName,
+              reviewDate: reviewDate,
               rating: parsedRating,
               title: reviewTitle,
               text: item.querySelectorAll("span")[3].innerHTML,
@@ -87,8 +100,12 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
   return parse();
 };
 
-const processor = (browser: Browser, href: string, tripAdvisorReviewBase:string) => {
-  return new Promise<TripadvisorReview[]>((resolve, reject) => {
+const processor = (
+  browser: Browser,
+  href: string,
+  tripAdvisorReviewBase: string
+) => {
+  return new Promise<TripadvisorRating>((resolve, reject) => {
     browser.newPage().then((page) => {
       page.on("console", (msg) => console.log("BROWSER LOG:", msg.text())); //capture in browser console
       page.goto(href).then((data) => {
@@ -114,9 +131,21 @@ const processor = (browser: Browser, href: string, tripAdvisorReviewBase:string)
                             { timeout: 3002 }
                           )
                           .then(async (data) => {
-                            let review = [] as TripadvisorReview[];
+                            let rating = {
+                              globalRating: 5,
+                              reviews: [] as TripadvisorReview,
+                            } as TripadvisorRating;
+                            rating.globalRating = await page.$eval(
+                              'div.ui_poi_review_rating > span.ui_bubble_rating',
+                              (el) =>
+                                parseInt(
+                                  el
+                                    .getAttribute("class")
+                                    .replace(/[^0-9]/g, "")
+                                ) / 10
+                            );
                             for (let i = 0; i < MAX_REVIEW_PAGE; i++) {
-                              review = review.concat(
+                              rating.reviews = rating.reviews.concat(
                                 await page.evaluate(
                                   evaluateTripAdvisorPage,
                                   tripAdvisorReviewBase
@@ -134,7 +163,7 @@ const processor = (browser: Browser, href: string, tripAdvisorReviewBase:string)
                               }
                             }
 
-                            resolve(review);
+                            resolve(rating);
                           });
                       });
                   });
@@ -147,8 +176,8 @@ const processor = (browser: Browser, href: string, tripAdvisorReviewBase:string)
   });
 };
 
-const tripHarvest = (
-  tripAdvisorID: string
+const tripReviewHarvest = (
+  tripAdvisorID: string, headless=true
 ): Promise<TripadvisorReview[]> => {
   const TRIPADVISOR_ID = tripAdvisorID;
   const TRIPADVISOR_BASE = "https://www.tripadvisor.com/";
@@ -159,7 +188,7 @@ const tripHarvest = (
 
   return new Promise<TripadvisorReview[]>((resolve) => {
     launch({
-      headless: true,
+      headless: headless,
       devtools: true,
 
       args: [
@@ -172,14 +201,16 @@ const tripHarvest = (
 
       const href = TRIPADVISOR_BASE_ACITVITY; //`${TRIPADVISOR_BASE_ACITVITY}${subpage}`;
 
-      promises.push(processor(browser, TRIPADVISOR_BASE_ACITVITY,TRIPADVISOR_BASE));
+      promises.push(
+        processor(browser, TRIPADVISOR_BASE_ACITVITY, TRIPADVISOR_USER_REVIEW_BASE)
+      );
       const reviews = await Promise.all(promises);
       await browser.close();
-      console.log(`Retrieved ${reviews[0].length} reviews`);
+      console.log(`Retrieved ${(reviews[0] as TripadvisorRating).reviews.length} reviews`);
       resolve(reviews[0]);
     });
   });
 };
 
-export {tripHarvest}
-export type {TripadvisorReview}
+export { tripReviewHarvest };
+export type { TripadvisorReview };
