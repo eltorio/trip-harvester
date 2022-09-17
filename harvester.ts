@@ -168,6 +168,6 @@ launch({
   promises.push(processor(browser, TRIPADVISOR_BASE_ACITVITY));
   const reviews = await Promise.all(promises);
   await browser.close();
-  console.log(`Retrieved ${reviews[0].lentgh} reviews`)
+  console.log(`Retrieved ${reviews[0].length} reviews`)
   await fs.writeFile(`out-${Math.floor(Date.now() / 1000)}.json`,JSON.stringify(reviews[0]))
 });

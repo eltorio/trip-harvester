@@ -38,3 +38,5 @@ launch-dist
 launch-test-list
 jwks.json
 launch-test-put
+
+out*.json
