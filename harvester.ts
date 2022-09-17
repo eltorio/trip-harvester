@@ -14,7 +14,7 @@ const TRIPADVISOR_PAGES = [
   process.env.RIPADVISOR_PAGES_2,
 ];
 
-console.log(`Working for : ${TRIPADVISOR_USER_REVIEW_BASE}`);
+console.log(`Working for : ${TRIPADVISOR_BASE_ACITVITY}`);
 
 type TripadvisorReview = {
   reviewId?: string;
@@ -81,6 +81,7 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
               exp: experience,
               url: `${TRIPADVISOR_USER_REVIEW_BASE}-r${reviewId}`,
             });
+            (document.body.querySelector('a.ui_button.nav.next.primary') as HTMLAnchorElement).click()
           }
           resolve(results);
         } else {
@@ -121,12 +122,21 @@ const processor = (browser: Browser, href: string) => {
                             'document.querySelector("#onetrust-accept-btn-handler").click()',
                             { timeout: 3002 }
                           )
-                          .then((data) => {
+                          .then(async (data) => {
+                           let review = await page.evaluate(
+                              evaluateTripAdvisorPage,
+                              TRIPADVISOR_USER_REVIEW_BASE
+                            )
+                            review = review.concat(await page.evaluate(
+                              evaluateTripAdvisorPage,
+                              TRIPADVISOR_USER_REVIEW_BASE
+                            ))
+                            review = review.concat(await page.evaluate(
+                              evaluateTripAdvisorPage,
+                              TRIPADVISOR_USER_REVIEW_BASE
+                            ))
                             resolve(
-                              page.evaluate(
-                                evaluateTripAdvisorPage,
-                                TRIPADVISOR_USER_REVIEW_BASE
-                              )
+                                review
                             );
                           });
                       })
