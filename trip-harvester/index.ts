@@ -1,22 +1,7 @@
-import * as dotenv from "dotenv"; // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
+
 import { launch, Browser } from "puppeteer";
-import fs from 'fs/promises'
 
-dotenv.config();
-
-const TRIPADVISOR_ID = process.env.TRIPADVISOR_ID;
-const TRIPADVISOR_BASE = process.env.TRIPADVISOR_BASE;
-const TRIPADVISOR_FULL = process.env.TRIPADVISOR_FULL;
-const TRIPADVISOR_USER_REVIEW_BASE = `${TRIPADVISOR_BASE}ShowUserReviews-${TRIPADVISOR_ID}`;
-const TRIPADVISOR_BASE_ACITVITY = `${TRIPADVISOR_BASE}Attraction_Review-${TRIPADVISOR_ID}-Reviews`; //?filterLang=ALL
-const TRIPADVISOR_PAGES = [
-  process.env.TRIPADVISOR_PAGES_0,
-  process.env.RIPADVISOR_PAGES_1,
-  process.env.RIPADVISOR_PAGES_2,
-];
-const MAX_REVIEW_PAGE = 50
-
-console.log(`Working for : ${TRIPADVISOR_BASE_ACITVITY}`);
+const MAX_REVIEW_PAGE = 1000; // there is 5 reviews per page
 
 type TripadvisorReview = {
   reviewId?: string;
@@ -54,7 +39,9 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
           resolve(results);
         }
         if (document.querySelector("body").innerText.includes("Google")) {
-          console.log("start scraping review in this page\n"+window.location.href);
+          console.log(
+            "start scraping review in this page\n" + window.location.href
+          );
           clearInterval(interval);
           let items = document.body.querySelectorAll("[data-reviewid]");
           for (let i = 0; i < items.length; i++) {
@@ -70,7 +57,9 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
                 '[data-test-target="review-title"]'
               ) as HTMLElement
             ).innerText;
-            console.log(`\t got item ${i+1} id:${reviewId} title:${reviewTitle}`);
+            console.log(
+              `\t got item ${i + 1} id:${reviewId} title:${reviewTitle}`
+            );
             let experience = item
               .querySelectorAll("span")[6]
               .innerText.replace(/^.*: /, "");
@@ -85,7 +74,9 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
           }
           resolve(results);
         } else {
-          console.log(`still wait for page being ready (perhaps there is no more element)\n${window.location.href}`);
+          console.log(
+            `still wait for page being ready (perhaps there is no more element)\n${window.location.href}`
+          );
         }
       }, WAITFOR_LANGUAGE_RADIO_INTERVAL);
     });
@@ -96,7 +87,7 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
   return parse();
 };
 
-const processor = (browser: Browser, href: string) => {
+const processor = (browser: Browser, href: string, tripAdvisorReviewBase:string) => {
   return new Promise<TripadvisorReview[]>((resolve, reject) => {
     browser.newPage().then((page) => {
       page.on("console", (msg) => console.log("BROWSER LOG:", msg.text())); //capture in browser console
@@ -128,7 +119,7 @@ const processor = (browser: Browser, href: string) => {
                               review = review.concat(
                                 await page.evaluate(
                                   evaluateTripAdvisorPage,
-                                  TRIPADVISOR_USER_REVIEW_BASE
+                                  tripAdvisorReviewBase
                                 )
                               );
                               const aNext = await page.$("span.pageNum + a");
@@ -138,7 +129,7 @@ const processor = (browser: Browser, href: string) => {
                                   page.click("span.pageNum + a"),
                                 ]);
                               } else {
-                                i = MAX_REVIEW_PAGE+1;
+                                i = MAX_REVIEW_PAGE + 1;
                                 break;
                               }
                             }
@@ -155,19 +146,40 @@ const processor = (browser: Browser, href: string) => {
     });
   });
 };
-launch({
-  headless: true,
-  devtools: true,
 
-  args: ["--no-sandbox", "--disable-setuid-sandbox", "--window-size=1920,1080"],
-}).then(async (browser: Browser) => {
-  let promises = [];
+const tripHarvest = (
+  tripAdvisorID: string
+): Promise<TripadvisorReview[]> => {
+  const TRIPADVISOR_ID = tripAdvisorID;
+  const TRIPADVISOR_BASE = "https://www.tripadvisor.com/";
+  const TRIPADVISOR_USER_REVIEW_BASE = `${TRIPADVISOR_BASE}ShowUserReviews-${TRIPADVISOR_ID}`;
+  const TRIPADVISOR_BASE_ACITVITY = `${TRIPADVISOR_BASE}Attraction_Review-${TRIPADVISOR_ID}-Reviews`; //?filterLang=ALL
 
-  const href = TRIPADVISOR_BASE_ACITVITY; //`${TRIPADVISOR_BASE_ACITVITY}${subpage}`;
+  console.log(`Working for : ${TRIPADVISOR_BASE_ACITVITY}`);
 
-  promises.push(processor(browser, TRIPADVISOR_BASE_ACITVITY));
-  const reviews = await Promise.all(promises);
-  await browser.close();
-  console.log(`Retrieved ${reviews[0].length} reviews`)
-  await fs.writeFile(`out-${Math.floor(Date.now() / 1000)}.json`,JSON.stringify(reviews[0]))
-});
+  return new Promise<TripadvisorReview[]>((resolve) => {
+    launch({
+      headless: true,
+      devtools: true,
+
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--window-size=1920,1080",
+      ],
+    }).then(async (browser: Browser) => {
+      let promises = [];
+
+      const href = TRIPADVISOR_BASE_ACITVITY; //`${TRIPADVISOR_BASE_ACITVITY}${subpage}`;
+
+      promises.push(processor(browser, TRIPADVISOR_BASE_ACITVITY,TRIPADVISOR_BASE));
+      const reviews = await Promise.all(promises);
+      await browser.close();
+      console.log(`Retrieved ${reviews[0].length} reviews`);
+      resolve(reviews[0]);
+    });
+  });
+};
+
+export {tripHarvest}
+export type {TripadvisorReview}
