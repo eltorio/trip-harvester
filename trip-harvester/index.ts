@@ -3,7 +3,7 @@ import { launch, Browser } from "puppeteer";
 const MAX_REVIEW_PAGE = 1000; // there is 5 reviews per page
 
 type TripadvisorReview = {
-  reviewId?: string;
+  _id?: string;
   reviewerUrl?: string;
   reviewerName?: string;
   reviewDate?: string;
@@ -15,6 +15,7 @@ type TripadvisorReview = {
 };
 
 type TripadvisorRating = {
+  _id: string;
   globalRating: number;
   reviews: TripadvisorReview[];
 };
@@ -74,7 +75,7 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
               .querySelectorAll("span")[6]
               .innerText.replace(/^.*: /, "");
             results.push({
-              reviewId: reviewId,
+              _id: reviewId,
               reviewerUrl: reviewerUrl,
               reviewerName: reviewerName,
               reviewDate: reviewDate,
@@ -103,7 +104,8 @@ const evaluateTripAdvisorPage = (TRIPADVISOR_USER_REVIEW_BASE: string) => {
 const processor = (
   browser: Browser,
   href: string,
-  tripAdvisorReviewBase: string
+  tripAdvisorReviewBase: string,
+  tripId:string
 ) => {
   return new Promise<TripadvisorRating>((resolve, reject) => {
     browser.newPage().then((page) => {
@@ -132,6 +134,7 @@ const processor = (
                           )
                           .then(async (data) => {
                             let rating = {
+                              _id: tripId,
                               globalRating: 5,
                               reviews: [] as TripadvisorReview,
                             } as TripadvisorRating;
@@ -202,7 +205,7 @@ const tripReviewHarvest = (
       const href = TRIPADVISOR_BASE_ACITVITY; //`${TRIPADVISOR_BASE_ACITVITY}${subpage}`;
 
       promises.push(
-        processor(browser, TRIPADVISOR_BASE_ACITVITY, TRIPADVISOR_USER_REVIEW_BASE)
+        processor(browser, TRIPADVISOR_BASE_ACITVITY, TRIPADVISOR_USER_REVIEW_BASE,tripAdvisorID)
       );
       const reviews = await Promise.all(promises);
       await browser.close();
